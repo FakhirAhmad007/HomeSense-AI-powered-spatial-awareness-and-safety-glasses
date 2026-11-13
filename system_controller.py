@@ -12,6 +12,12 @@ from target_identifier import Intent
 
 log = logging.getLogger("homesense.controller")
 
+WELCOME = "Welcome to HomeSense. What object would you like to find?"
+SCAN_PROMPT = "Move your head slowly to scan your surroundings."
+OBJECT_FOUND = "Object found."
+STOPPED = "Stopped."
+SIDESTEP = {"left": "Move a little to the left.", "right": "Move a little to the right."}
+
 
 class State(Enum):
     READY = "READY"
@@ -43,7 +49,7 @@ class SystemController:
         self._last_guidance = None
         self._last_guidance_ts = -1e9
         self._last_obstacle_say = -1e9
-        self._last_search_prompt = 0.0
+        self._next_scan_prompt = None
         self._search_started = None
         self._last_reminder = 0.0
 
@@ -64,18 +70,28 @@ class SystemController:
 
     def _begin_search(self, now=None):
         self.tracker.reset(); self.guide.reset(); self.obstacles.reset(); self._reset_pacing()
-        self._search_started = self._last_search_prompt = now     # None -> set from the first frame's timestamp
+        self._search_started = now     # None -> set from the first frame's timestamp
+        self._next_scan_prompt = None if now is None else now + self.cfg.scan_prompt_first_s
         self._set_state(State.SEARCHING)
 
-    def _to_ready(self, text):
+    def _to_ready(self, text):                    # used for search timeout only
         self.target, self.target_phrase = None, ""
         self.tracker.reset(); self.guide.reset(); self.obstacles.reset()
         self._set_state(State.READY)
         self.audio.say(text, HIGH)
 
+    def _stop_everything(self):
+        """User said stop / I found it: end search + navigation and give NO further instructions.
+        Queued guidance is discarded so nothing stale is spoken after the user has the object."""
+        self.target, self.target_phrase = None, ""
+        self.tracker.reset(); self.guide.reset(); self.obstacles.reset(); self._reset_pacing()
+        self._set_state(State.READY)
+        self.audio.silence()
+        self.audio.say(STOPPED, URGENT)
+
     # ------------------------------------------------------------ main loop
     def run(self):
-        self.audio.say("HomeSense is ready. What would you like to find?", HIGH)
+        self.audio.say(WELCOME, HIGH)
         seq = -1
         try:
             while not self._quit:
@@ -127,15 +143,13 @@ class SystemController:
         self._cmd_ts = vr.ts
         s = self.state
         if cmd.intent is Intent.STOP:
-            if s is State.ARRIVED:
-                self._to_ready("Search complete. HomeSense is ready. What would you like to find?")
-            elif s is State.READY:
-                self.audio.say("Okay. What would you like to find?", HIGH, cooldown=3)
+            if s is State.READY:
+                self.audio.say("Nothing is being searched. What object would you like to find?", HIGH, cooldown=3)
             else:
-                self._to_ready("Search cancelled. HomeSense is ready. What would you like to find?")
+                self._stop_everything()
         elif cmd.intent is Intent.FOUND:
             if s is not State.READY:
-                self._to_ready("Great. Search complete. HomeSense is ready. What would you like to find?")
+                self._stop_everything()
         elif cmd.intent is Intent.QUIT:
             if s is State.READY:
                 self.audio.say("Goodbye.", HIGH)
@@ -158,7 +172,7 @@ class SystemController:
             self._begin_search()
         else:
             if s is State.READY:
-                self.audio.say("Sorry, I did not catch that. What would you like to find?", NORMAL, cooldown=5)
+                self.audio.say("Sorry, I did not catch that. What object would you like to find?", NORMAL, cooldown=5)
 
     # ------------------------------------------------------------ per-frame processing
     def _on_frame(self, frame):
@@ -187,18 +201,19 @@ class SystemController:
 
     def _searching(self, dets, frame, W, now):
         if self._search_started is None:
-            self._search_started = self._last_search_prompt = now
+            self._search_started = now
+            self._next_scan_prompt = now + self.cfg.scan_prompt_first_s
         ts = self.tracker.update(dets, self.target, W, now)
         if ts.just_confirmed:
             self.metrics.record("confirm_latency", now - ts.first_hit_ts)
             self.guide.reset(); self.obstacles.reset(); self._reset_pacing()
-            self._set_state(State.NAVIGATING)
-            self._say("Object detected. Starting navigation.", HIGH, frame=frame)
+            self._set_state(State.NAVIGATING)                    # navigation starts automatically
+            self._say(OBJECT_FOUND, HIGH, frame=frame)
         elif now - self._search_started > self.cfg.search_timeout_s:
-            self._to_ready(f"I could not find {self.target_phrase}. Search ended. What would you like to find?")
-        elif now - self._last_search_prompt >= self.cfg.search_reminder_s:
-            self._last_search_prompt = now
-            self.audio.say(f"Still searching for {self.target_phrase}. Please turn slowly.", NORMAL)
+            self._to_ready(f"I could not find {self.target_phrase}. Search ended. What object would you like to find?")
+        elif now >= self._next_scan_prompt:
+            self._next_scan_prompt = now + self.cfg.scan_prompt_interval_s
+            self.audio.say(SCAN_PROMPT, HIGH)
 
     def _navigating(self, dets, frame, W, H, now):
         ts = self.tracker.update(dets, self.target, W, now)
@@ -212,7 +227,7 @@ class SystemController:
             self._set_state(State.OBSTACLE)
             if st.newly_blocked or now - self._last_obstacle_say >= self.cfg.obstacle_repeat_s:
                 name = st.obstacle.label.capitalize() if st.obstacle else "Obstacle"
-                text = f"{name} ahead. Move slightly {st.suggestion}." if st.suggestion else f"{name} ahead. Stop."
+                text = f"{name} ahead. {SIDESTEP[st.suggestion]}" if st.suggestion else f"{name} ahead. Stop."
                 self._last_obstacle_say = now
                 self._say(text, URGENT, frame=frame)
             return

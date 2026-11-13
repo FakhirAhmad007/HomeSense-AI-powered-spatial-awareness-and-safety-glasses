@@ -37,7 +37,8 @@ class Config:
     target_confirm_frames: int = 3      # consecutive frames needed before "Object detected"
     target_lost_timeout_s: float = 1.5  # target may vanish this long before we call it lost
     target_max_jump: float = 0.30       # max centre jump between frames (fraction of width) to be "the same" object
-    search_reminder_s: float = 20.0
+    scan_prompt_first_s: float = 2.0    # first 'move your head' prompt this long after the search starts
+    scan_prompt_interval_s: float = 8.0  # then repeated this often while the object is still not visible
     search_timeout_s: float = 120.0
 
     # ---------------- Navigation ----------------

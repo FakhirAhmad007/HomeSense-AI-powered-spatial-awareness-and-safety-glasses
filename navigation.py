@@ -6,11 +6,11 @@ from typing import Optional
 
 
 class Guidance(Enum):
-    LEFT = "Move slightly left."
-    RIGHT = "Move slightly right."
-    FORWARD = "Move forward."
-    BACK = "Move slightly back."
-    ARRIVED = "The object is in front of you."
+    LEFT = "Move a little to the left."
+    RIGHT = "Move a little to the right."
+    FORWARD = "Move slightly forward."
+    BACK = "Move slightly backward."
+    ARRIVED = "The object is directly in front of you and is nearby."
 
 
 class NavigationGuide:
