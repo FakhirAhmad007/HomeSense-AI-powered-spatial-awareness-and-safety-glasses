@@ -28,7 +28,9 @@ Use headphones if possible; otherwise the mic is muted while HomeSense speaks (s
 which means "stop" is ignored for the length of one short sentence. With headphones add `--headphones`.
 
 ## Voice commands
-`find my cup` / `where is my phone` | `stop` or `cancel` (any time) | `I found it` | `quit` (only from ready state)
+`find my cell phone` / `where is my cup` | `stop` (any time: ends search and navigation, discards queued guidance, says "Stopped." once, then stays silent) | `I found it/cancel` (same as stop), | `quit` (only when idle)
+
+Spoken phrases are defined at the top of `system_controller.py` and in `navigation.py` (the `Guidance` enum). Scan-prompt timing: `scan_prompt_first_s` / `scan_prompt_interval_s` in `config.py`.
 
 ## Tests
 ```

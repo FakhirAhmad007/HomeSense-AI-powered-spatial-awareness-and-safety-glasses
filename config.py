@@ -58,8 +58,9 @@ class Config:
 
     # ---------------- Obstacles ----------------
     obstacle_conf: float = 0.40
-    obstacle_min_area: float = 0.04     # ignore boxes smaller than 4% of the frame (too small / too far)
-    obstacle_min_bottom: float = 0.55   # box base must be in the lower 45% of the frame (near the floor in front of us)
+    obstacle_near_fill: float = 0.55    # CALIBRATE: box must fill >= 55% of frame height or width to count as 'quite near'
+    obstacle_min_area: float = 0.04     # Ignore boxes smaller than 4% of the frame
+    obstacle_min_bottom: float = 0.55   # Box base must be in the lower 45% of the frame 
     corridor_margin: float = 0.15       # extra width around the line between "straight ahead" and the target
     obstacle_overlap: float = 0.40      # fraction of obstacle width inside the corridor to count as a conflict
     obstacle_window: int = 5

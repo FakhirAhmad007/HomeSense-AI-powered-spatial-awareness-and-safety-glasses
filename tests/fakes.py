@@ -70,6 +70,8 @@ class FakeAudio:
             return False
         self.said.append((text, priority))
         return True
+    def silence(self):
+        self.said.append(("<silenced>", 99))
     def wait_idle(self, t=0): pass
     @property
     def texts(self):
