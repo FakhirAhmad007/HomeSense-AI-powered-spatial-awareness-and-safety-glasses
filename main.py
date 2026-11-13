@@ -29,6 +29,7 @@ def parse_args():
     p.add_argument("--stats", action="store_true")
     p.add_argument("--list-classes", action="store_true")
     p.add_argument("--check-hardware", action="store_true")
+    p.add_argument("--test-speech", action="store_true", help="speak the HomeSense phrases in a row, then test interruption")
     p.add_argument("--debug", action="store_true")
     return p.parse_args()
 
@@ -53,6 +54,23 @@ def make_debug_view():
         return (cv2.waitKey(1) & 0xFF) == ord("q")
     return hook
 
+def test_speech(cfg):
+    import time
+    from audio_output import AudioOutput, HIGH, NORMAL, URGENT
+    audio = AudioOutput(cfg); audio.start()
+    print("Speech engine in use:", audio.backend_name, "(FALLBACK: text only)" if audio.degraded else "")
+    phrases = ["Welcome to HomeSense. What object would you like to find?",
+               "Move your head slowly to scan your surroundings.",
+               "Object found.", "Move a little to the left.", "Move a little to the right.",
+               "Move slightly forward.", "Move slightly backward.",
+               "The object is directly in front of you and is nearby."]
+    for i, t in enumerate(phrases, 1):
+        print(f"{i}/{len(phrases)}"); audio.say(t, HIGH); audio.wait_idle(12); time.sleep(0.3)
+    print("Interrupt test: the long sentence should be cut off, then you should hear 'Stopped.'")
+    audio.say("This is a long sentence that should be cut off before it reaches the end.", NORMAL)
+    time.sleep(1.2); audio.silence(); audio.say("Stopped.", URGENT); audio.wait_idle(8)
+    print("Afterwards: did you hear ALL 8 sentences and 'Stopped.'?")
+    audio.stop()
 
 def check_hardware(cfg, args):
     from audio_output import AudioOutput, HIGH
@@ -62,7 +80,7 @@ def check_hardware(cfg, args):
     from voice_input import VoiceInput, VoiceInputError
     print("\n== 1. Speaker ==")
     audio = AudioOutput(cfg); audio.start()
-    print("TTS engine:", "FALLBACK (console only)" if audio.degraded else "OK")
+    print("TTS engine:", audio.backend_name, "- FALLBACK (text only)" if audio.degraded else "- OK")
     audio.say("HomeSense speaker test. If you can hear this, the speaker works.", HIGH); audio.wait_idle(8)
     print("\n== 2. Model ==")
     try:
@@ -106,6 +124,9 @@ def main():
     if args.vosk_model: cfg.vosk_model_path = args.vosk_model
     if args.headphones: cfg.mute_mic_while_speaking = False
     if args.stats: cfg.stats_interval_s = 10.0
+
+    if args.test_speech:
+        return test_speech(cfg)
 
     if args.check_hardware:
         return check_hardware(cfg, args)
