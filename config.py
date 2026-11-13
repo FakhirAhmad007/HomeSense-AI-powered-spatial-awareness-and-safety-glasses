@@ -76,7 +76,7 @@ class Config:
     min_instruction_gap_s: float = 1.2  # min time between any two guidance phrases
     instruction_repeat_s: float = 3.0   # same guidance phrase repeated no faster than this
     obstacle_repeat_s: float = 3.0
-    arrival_reminder_s: float = 15.0
+    arrival_repeat_s: float = 6.0       # while still near the object, repeat the 'nearby' message this often
     max_detector_errors: int = 5
 
     # ---------------- Debug ----------------

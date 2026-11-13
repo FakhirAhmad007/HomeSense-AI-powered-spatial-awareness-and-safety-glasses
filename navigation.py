@@ -22,6 +22,7 @@ class NavigationGuide:
         self._off = None
         self._fill = None
         self._centered = None
+        self._arrived = False
         self._reset_arrival()
 
     def _reset_arrival(self) -> None:
@@ -52,15 +53,21 @@ class NavigationGuide:
 
         if not self._centered:
             self._reset_arrival()
+            self._arrived = False
             return Guidance.LEFT if off < 0 else Guidance.RIGHT
 
         near = cfg.near_fill.get(label, cfg.near_fill_default)
         too_close = min(0.95, near * cfg.too_close_factor)
-        if fill < near:
+        # Once arrived, the object must get clearly smaller before we say "forward" again (hysteresis),
+        # otherwise tiny size changes would make the guidance flip between "nearby" and "forward".
+        leave_near = near * 0.85 if self._arrived else near
+        if fill < leave_near:
             self._reset_arrival()
+            self._arrived = False
             return Guidance.FORWARD
         if fill > too_close:
             self._reset_arrival()
+            self._arrived = False
             return Guidance.BACK
 
         # near AND centred: only announce arrival after consistent observations
@@ -68,5 +75,6 @@ class NavigationGuide:
             self._arr_start = ts
         self._arr_count += 1
         if self._arr_count >= cfg.arrival_frames and ts - self._arr_start >= cfg.arrival_min_s:
-            return Guidance.ARRIVED
+            self._arrived = True
+            return Guidance.ARRIVED      # returned on EVERY frame while near + centred; the controller paces the speech
         return None

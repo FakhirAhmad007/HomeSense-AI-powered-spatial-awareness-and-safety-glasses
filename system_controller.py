@@ -51,7 +51,7 @@ class SystemController:
         self._last_obstacle_say = -1e9
         self._next_scan_prompt = None
         self._search_started = None
-        self._last_reminder = 0.0
+        self._last_arrival_say = -1e9
 
     def _set_state(self, s):
         if s is not self.state:
@@ -177,12 +177,6 @@ class SystemController:
     # ------------------------------------------------------------ per-frame processing
     def _on_frame(self, frame):
         now = frame.ts
-        if self.state is State.ARRIVED:
-            self._last_dets = []
-            if now - self._last_reminder >= self.cfg.arrival_reminder_s:
-                self._last_reminder = now
-                self.audio.say("The object is in front of you. Say stop or I found it.", NORMAL)
-            return
         self.metrics.mark_frame()
         self.metrics.sample_resources()
         if self.cfg.stats_interval_s and now - self._last_stats >= self.cfg.stats_interval_s:
@@ -241,10 +235,16 @@ class SystemController:
         if g is None:
             return
         if g is Guidance.ARRIVED:
-            self._set_state(State.ARRIVED)
-            self._last_reminder = now
-            self._say(g.value, URGENT, frame=frame)
+            # Arrived, but navigation does NOT end: keep tracking and keep talking until the user says stop.
+            first = self.state is not State.ARRIVED
+            if first:
+                self._set_state(State.ARRIVED)
+            if first or now - self._last_arrival_say >= self.cfg.arrival_repeat_s:
+                self._last_arrival_say = now
+                self._say(g.value, URGENT if first else HIGH, frame=frame)
             return
+        if self.state is State.ARRIVED:                      # the user moved away from the object again
+            self._set_state(State.NAVIGATING)
         if now - self._last_guidance_ts < self.cfg.min_instruction_gap_s:
             return
         if g is self._last_guidance and now - self._last_guidance_ts < self.cfg.instruction_repeat_s:
